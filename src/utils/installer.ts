@@ -4,6 +4,7 @@ import * as https from "https"
 import * as os from "os"
 import * as path from "path"
 import * as tar from "tar"
+import AdmZip from "adm-zip"
 
 import { window } from "coc.nvim"
 
@@ -74,15 +75,24 @@ export async function install(dir: string): Promise<void> {
 async function downloadTar(sourceUrl: string, targetPath: string) {
   const dir = await mkTmpDir(sourceUrl)
 
-  if (osPlatform === 'win32') {
-    throw new Error('Windows is not currently supported')
-
-  } else {
-    const tarTmpPath = join(dir.path, "tmp.tar.gz")
-
-    await download(sourceUrl, tarTmpPath)
-    await tar.x({ file: tarTmpPath, cwd: targetPath, strip: 0 })
+  let tmpPath: string;
+  let extract:()=>Promise<void>;
+  if (osPlatform === 'win32'){
+      tmpPath = join(dir.path, "tmp.zip")
+      extract = async ()=>{
+          const zip = new AdmZip(tmpPath);
+          zip.extractAllTo(targetPath)
+      }
+  }else {
+      tmpPath = join(dir.path, "tmp.tar.gz")
+      extract = async () => {
+          await tar.x({ file: tmpPath, cwd: targetPath, strip: 0 })
+      }
   }
+
+
+  await download(sourceUrl, tmpPath)
+  await extract();
 
   await dir.dispose()
 }
